@@ -4,12 +4,7 @@ This is a MizohoDirect (Mizuho internet banking) library for Ruby.
 
 Require:
 
-httpclientとhpricotが必要です．gemからインストールしてください．
-
-gem install httpclient
-gem install hpricot
-
-付属のhttpclient.rbでも良いかもですが，動かない場合がある気がします．
+httpclientとhpricotが必要です．gemからインストールしてください．→不要になりました
 
 Exapmple:
 
@@ -31,7 +26,6 @@ QA:
 #!/usr/bin/ruby -Ku
 require "rubygems"
 require 'yaml'
-require "httpclient"
 require_relative "mizuhodirect"
 
 mizuho_account = YAML.load_file('mizuho_account.yaml')

@@ -2,8 +2,9 @@
 #  みずほダイレクトβ
 #    http://www.binzume.net/
 require "kconv"
-#require "hpricot"
 require "rexml/document"
+#require "hpricot"
+require_relative "mizuhodirect"
 
 class MizuhoDirect
   attr_accessor :account, :account_status
