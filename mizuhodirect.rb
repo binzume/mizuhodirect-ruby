@@ -3,10 +3,11 @@
 #    http://www.binzume.net/
 require "kconv"
 #require "hpricot"
+require "rexml/document"
 
 class MizuhoDirect
   attr_accessor :account, :account_status
-  
+
   def initialize(account = nil)
     @account_status = {
       "zandaka" => nil,
@@ -24,10 +25,14 @@ class MizuhoDirect
 
     url = 'https://web.ib.mizuhobank.co.jp/servlet/mib?xtr=Emf00000'
     res = @client.get(url)
-
     if res.status==302
       url = res.header['location'].first
       url.gsub!(/\"/,"")
+    else
+      if res.body =~ /<form[^>]+?action="([^"]+)"/i
+        url = $1
+        res = @client.get(url) # dummy (avoid bug for httpclient.rb )
+      end
     end
 
     res = sendid(url)
@@ -114,13 +119,14 @@ class MizuhoDirect
     unless @login_success
       return
     end
-    html = @client.get_content('https://'+@host+'/servlet/mib?xtr=Emf02000').toutf8
+    res = @client.get('https://'+@host+'/servlet/mib?xtr=Emf02000')
+    html = res.body.toutf8
     unless html
       return
     end
     account_status = {
       "zandaka" => nil,
-      "recentlog" => nil,
+      "recentlog" => [],
     }
 
     if html =~ /&nbsp;現在残高<\/DIV>.*?>([\d,]+)\s+円&nbsp;<\/DIV>/m
@@ -128,8 +134,38 @@ class MizuhoDirect
       account_status["zandaka"] = zandaka.gsub(/,/,"").to_i
     end
 
-    recent = Array.new
-    
+    recent = []
+
+    # use rexml
+    html.scan(/<table[^>]*>.*?<\/table>/mi) {|tbl|
+      tbl.gsub!(/^.+(<table[^\w])/im,'\1')
+      unless tbl.index('お取引内容')
+        next
+      end
+      tbl.gsub!(/<\/?DIV[^>]*>/,'')
+      tbl.gsub!(/<(\w+)[^>]*>/,'<\1>')
+      doc = REXML::Document.new(tbl)
+
+      trs = []
+      doc.each_element('TABLE/TR') {|tr|
+        trs << tr
+      }
+      trs.shift
+      trs.each {|tr|
+        tds = []
+        tr.each_element('TD') {|td|
+          tds << td.text.gsub('&nbsp;',' ')
+        }
+        expend = tds[1].gsub(/,/,'').to_i
+        deposit = tds[2].gsub(/,/,'').to_i
+        recent << [tds[0].gsub('.','-'), expend, deposit, tds[3]]
+      }
+
+    }
+    account_status["recentlog"] = recent
+    return account_status
+
+    # use hpricot
     doc = Hpricot(html);
     trs = (doc / 'table[text()*="お取引内容"]').last  / 'tr';
     trs.shift

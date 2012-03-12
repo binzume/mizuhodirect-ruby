@@ -62,7 +62,7 @@ class HTTPClient
     r = http.get(uri.request_uri,headers,&block)
     return post_proc(uri,r)
   end
-  
+
   def get_content url,headers = nil
     r = get(url,headers)
     return r.body

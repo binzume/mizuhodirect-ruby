@@ -1,7 +1,7 @@
 #!/usr/bin/ruby -Ku
 require "rubygems"
 require 'yaml'
-require "httpclient"
+require_relative "httpclient"
 require_relative "mizuhodirect"
 
 mizuho_account = YAML.load_file('mizuho_account.yaml')
