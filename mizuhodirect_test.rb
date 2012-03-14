@@ -19,6 +19,8 @@ begin
     p row
   end
 
+rescue
+  puts "error"
 ensure
   # logout
   m.logout
