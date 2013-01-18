@@ -19,8 +19,13 @@ begin
     p row
   end
 
-rescue
-  puts "error"
+  # 振込み (登録住み口座の名前,金額,第２暗証番号)
+  #if m.move('登録住み口座の名前', 5000000, "1234567")
+  #  puts "ok"
+  #end
+
+rescue => exc
+  p exc
 ensure
   # logout
   m.logout

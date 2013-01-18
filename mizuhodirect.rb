@@ -4,6 +4,7 @@
 require "kconv"
 require "rexml/document"
 require "time"
+require "uri"
 #require "hpricot"
 require_relative "httpclient"
 
@@ -226,6 +227,118 @@ class MizuhoDirect
     html = res.body.toutf8
     # puts html
     return _parse_recent(html)
+  end
+
+  # move to registered account
+  def move nick,amount, pass2 = "", email = nil, message = nil
+    postkey = nil
+
+    res = @client.get("https://#{@host}/servlet/mib?xtr=Emf01000&mbid=MB_R011N050")
+    if res.status==302
+      res = @client.get(res.header['location'].first)
+      if res.body =~/<INPUT TYPE=HIDDEN NAME="EMFPOSTKEY" VALUE="(\w+)"/
+        postkey = $1
+      end
+    else
+      puts res.body
+      return
+    end
+
+    if res.body.toutf8 =~ /<INPUT TYPE="radio" NAME="InknKzRadio" VALUE="(\d+)" ><\/DIV><\/TD>\s+<TD[^>]*><DIV[^>]*>&nbsp;#{nick}<\/DIV>/
+      n = $1
+    else
+      puts res.body
+      return
+    end
+    p n
+
+    postdata={
+      "Token"=>"",
+      "NLS"=>"JP",
+      "REDISP"=>"OFF",
+      "EMFPOSTKEY"=>postkey,
+      "hidColor"=>"00",
+      "menuposition"=>"0",
+      "pm_fp"=>"",
+
+      "UktkNo"=>"",
+      "OutknKzBox"=>"0",
+      "OutknCustNmUmu"=>"no",
+      "OutknCustNm"=>"",
+      "InknKzRadio"=>n,
+      "Next"=>"",
+    }
+    res = @client.post("https://#{@host}/servlet/mib?xtr=Emf05000", postdata)
+    if res.status==302
+      res = @client.get(res.header['location'].first)
+      #puts res.body
+      if res.body =~/<INPUT TYPE=HIDDEN NAME="EMFPOSTKEY" VALUE="(\w+)"/
+        postkey = $1
+      end
+    end
+
+    postdata={
+      "Token"=>"",
+      "NLS"=>"JP",
+      "REDISP"=>"OFF",
+      "EMFPOSTKEY"=>postkey,
+      "hidColor"=>"00",
+      "menuposition"=>"0",
+      "pm_fp"=>"",
+
+      "InputThrKn"=>amount,
+      "PayeeEmail"=>email,
+      "PayeeEmailMessage"=>message &&message.tosjis,
+      "Next"=>"",
+    }
+    res = @client.post("https://#{@host}/servlet/mib?xtr=Emf05070", postdata)
+    if res.status==302
+      res = @client.get(res.header['location'].first)
+      #puts res.body
+      if res.body =~/<INPUT TYPE=HIDDEN NAME="EMFPOSTKEY" VALUE="(\w+)"/
+        postkey = $1
+      end
+    else
+      p postdata
+      p res
+      puts res.body
+      return
+    end
+
+    pass2pos = []
+    if res.body.toutf8 =~/第2暗証番号の左から<FONT COLOR="#F00000">(\d)番目<\/FONT>、<FONT COLOR="#F00000">(\d)番目<\/FONT>、<FONT COLOR="#F00000">(\d)番目<\/FONT>、<FONT COLOR="#F00000">(\d)番目<\/FONT>/
+      pass2pos = [$1.to_i,$2.to_i,$3.to_i,$4.to_i]
+    else
+      return
+    end
+    postdata={
+      "Token"=>"",
+      "NLS"=>"JP",
+      "REDISP"=>"OFF",
+      "EMFPOSTKEY"=>postkey,
+      "hidColor"=>"00",
+      "menuposition"=>"0",
+      "pm_fp"=>"",
+
+      "CheckAnshu2"=>"on",
+      "Anshu2"=>pass2[pass2pos[0]-1],
+      "Anshu2_2"=>pass2[pass2pos[1]-1],
+      "Anshu2_3"=>pass2[pass2pos[2]-1],
+      "Anshu2_4"=>pass2[pass2pos[3]-1],
+      "ButtonExecHurikomi"=>"",
+    }
+    res = @client.post("https://#{@host}/servlet/mib?xtr=Emf05080", postdata)
+    if res.status==302
+      res = @client.get(res.header['location'].first)
+      puts res.body
+    else
+      p postdata
+      p res
+      puts res.body
+      return
+    end
+
+    return true
   end
 
   def zandaka
