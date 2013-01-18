@@ -21,32 +21,31 @@ QA:
 
 みずほダイレクトのアカウント情報と，秘密の質問を識別するための部分文字列＋質問への回答を設定してください．
 
-# mizuhodirect_sample.rb
-
 #!/usr/bin/ruby -Ku
-require "rubygems"
+# -*- encoding: utf-8 -*-
+
 require 'yaml'
-require_relative "mizuhodirect"
+require_relative 'mizuhodirect'
 
 mizuho_account = YAML.load_file('mizuho_account.yaml')
+bank = MizuhoDirect.new
 
 # login
-m = MizuhoDirect.new
-unless m.login(mizuho_account)
-  puts "LOGIN ERROR"
+unless bank.login(mizuho_account)
+  puts 'LOGIN ERROR'
+  exit
 end
 
 begin
-  account_status = m.get_top
-
-  puts 'total: ' + account_status["zandaka"].to_s
-  account_status["recentlog"].each do |row|
+  puts 'total: ' + bank.total_balance.to_s
+  bank.recent.each do |row|
     p row
   end
-
+rescue => e
+  p e
 ensure
   # logout
-  m.logout
+  bank.logout
 end
 
 puts "ok"

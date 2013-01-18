@@ -1,34 +1,36 @@
 #!/usr/bin/ruby -Ku
-require "rubygems"
+# -*- encoding: utf-8 -*-
+
 require 'yaml'
-require_relative "mizuhodirect"
+require_relative 'mizuhodirect'
 
 mizuho_account = YAML.load_file('mizuho_account.yaml')
+bank = MizuhoDirect.new
 
 # login
-m = MizuhoDirect.new
-unless m.login(mizuho_account)
-  puts "LOGIN ERROR"
+unless bank.login(mizuho_account)
+  puts 'LOGIN ERROR'
+  exit
 end
 
 begin
-  account_status = m.get_top
-
-  puts 'total: ' + account_status["zandaka"].to_s
-  account_status["recentlog"].each do |row|
+  puts 'total: ' + bank.total_balance.to_s
+  bank.recent.each do |row|
     p row
   end
 
-  # 振込み (登録住み口座の名前,金額,第２暗証番号)
-  #if m.move('登録住み口座の名前', 5000000, "1234567")
-  #  puts "ok"
+  #if bank.total_balance > 5000000
+  #  # 振込み (登録住み口座のニックネーム:string,金額:int,第２暗証番号:string)
+  #  if bank.transfer_to_registered_account('登録住み口座のニックネーム', 3000000, mizuho_account['PASS2'])
+  #    puts "transfer ok"
+  #  end
   #end
 
-rescue => exc
-  p exc
+rescue => e
+  p e
 ensure
   # logout
-  m.logout
+  bank.logout
 end
 
 puts "ok"

@@ -1,15 +1,15 @@
+# -*- encoding: utf-8 -*-
 #
 #  みずほダイレクトβ
 #    http://www.binzume.net/
 require "kconv"
 require "rexml/document"
 require "time"
-require "uri"
 #require "hpricot"
 require_relative "httpclient"
 
 class MizuhoDirect
-  attr_accessor :account, :account_status
+  attr_accessor :account
 
   def initialize(account = nil)
     @account_status = {
@@ -21,6 +21,8 @@ class MizuhoDirect
     end
   end
 
+  ##
+  # ログイン
   def login(account)
     @account = account
     ua = "Mozilla/5.0 (Windows; U; Windows NT 5.1;) MizuhoDirectBot/0.1"
@@ -111,12 +113,42 @@ class MizuhoDirect
     return @client.post(url , postdata)
   end
 
+  ##
+  # ログアウト
   def logout
     unless @login_success
       return
     end
     return @client.get('https://'+@host+'/servlet/mib?xtr=EmfLogOff');
   end
+
+  def account_status
+    unless @account_status && @account_status["recentlog"]
+      get_top
+    end
+    @account_status
+  end
+
+  ##
+  # 残高確認
+  # とってきた結果はインスタンスに保持する
+  def total_balance
+    unless @account_status && @account_status["recentlog"]
+      get_top
+    end
+    @account_status['zandaka']
+  end
+
+  ##
+  # 直近の取引履歴
+  # とってきた結果はインスタンスに保持する
+  def recent
+    unless @account_status && @account_status["recentlog"]
+      get_top
+    end
+    @account_status["recentlog"]
+  end
+
 
   def get_top
     unless @login_success
@@ -229,8 +261,11 @@ class MizuhoDirect
     return _parse_recent(html)
   end
 
+  ##
   # move to registered account
-  def move nick,amount, pass2 = "", email = nil, message = nil
+  # 振込み (登録住み口座のニックネーム:string,金額:int,第２暗証番号:string)
+  # email,message(全角文字のみ)を指定するとメールで通知.
+  def transfer_to_registered_account nick, amount, pass2, email = nil, message = nil
     postkey = nil
 
     res = @client.get("https://#{@host}/servlet/mib?xtr=Emf01000&mbid=MB_R011N050")
@@ -250,7 +285,6 @@ class MizuhoDirect
       puts res.body
       return
     end
-    p n
 
     postdata={
       "Token"=>"",
@@ -300,7 +334,6 @@ class MizuhoDirect
       end
     else
       p postdata
-      p res
       puts res.body
       return
     end
@@ -333,7 +366,6 @@ class MizuhoDirect
       puts res.body
     else
       p postdata
-      p res
       puts res.body
       return
     end
