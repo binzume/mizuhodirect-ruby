@@ -272,7 +272,7 @@ class MizuhoDirect
     unless @login_success
       return
     end
-    
+
     # TBD
 
     return account_status
@@ -364,7 +364,7 @@ class MizuhoDirect
     res = @client.post(@base_url + "/servlet/TRNTRN0507001B.do", postdata)
     res = @client.get(res.header['location'].first) if res.status==302
 
-    if res.body.toutf8 =~/<div\s[^>]*id="ErrorMessage"[^>]*>(.*?)<\//
+    if res.body.toutf8 =~/<div\s[^>]*id="ErrorMessage"[^>]*>(.+?)<\//
       @formdata = parse_form(res.body)
       puts $1
       raise "ERR: #{$1}"
@@ -377,28 +377,31 @@ class MizuhoDirect
     raise "error pass2 get digits." unless pp[1] && pp[2] && pp[3] && pp[4]
 
     postdata = parse_form(res.body).merge({
-      "PASSWD_ScndPwd1" => pass2[pp[1]],
-      "PASSWD_ScndPwd2" => pass2[pp[2]],
-      "PASSWD_ScndPwd3" => pass2[pp[3]],
-      "PASSWD_ScndPwd4" => pass2[pp[4]],
+      "PASSWD_ScndPwd1" => pass2[pp[1]-1],
+      "PASSWD_ScndPwd2" => pass2[pp[2]-1],
+      "PASSWD_ScndPwd3" => pass2[pp[3]-1],
+      "PASSWD_ScndPwd4" => pass2[pp[4]-1],
       "chkTrnfrCntntConf" => "on"
     })
 
     p postdata
-    return ## skip
 
     res = @client.post(@base_url + "/servlet/TRNTRN0508001B.do", postdata)
     res = @client.get(res.header['location'].first) if res.status==302
     @formdata = parse_form(res.body)
+    html = res.body.toutf8
 
-    if res.body.toutf8 =~/<div\s[^>]*id="ErrorMessage"[^>]*>(.*?)<\//
+    if html =~/<div\s[^>]*id="ErrorMessage"[^>]*>(.+?)<\//
       puts $1
       raise "ERR: #{$1}"
     end
 
-    puts res.body
+    if html =~/<span\s+id="txtRecptNo"[^>]*>([^<]+)/
+      puts "recept: " + $1
+      return {:receptId => $1}
+    end
 
-    return true
+    return false
   end
 
   # deprecated
