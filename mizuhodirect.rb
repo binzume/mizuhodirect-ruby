@@ -272,24 +272,9 @@ class MizuhoDirect
     unless @login_success
       return
     end
-    res = @client.get("https://#{@host}/servlet/mib?xtr=Emf02000")
-    html = res.body.toutf8
-    unless html
-      return
-    end
-    account_status = {
-      "zandaka" => nil,
-      "recentlog" => [],
-    }
+    
+    # TBD
 
-    if html =~ /&nbsp;現在残高<\/DIV>.*?>([\d,]+)\s+円&nbsp;<\/DIV>/m
-      zandaka = $1;
-      account_status["zandaka"] = zandaka.gsub(/,/,"").to_i
-    end
-
-    account_status["recentlog"] = _parse_recent(html)
-
-    @account_status = account_status
     return account_status
   end
 
@@ -314,165 +299,111 @@ class MizuhoDirect
   end
 
   #  from 3 months ago... to today
-  def get_history from,to
+  def get_history from, to, acc = 0
     fdate = Time.parse(from)
     tdate = Time.parse(to)
+    mode = 2
 
     res = @client.post(@base_url + "/servlet/MENSRV0100003B.do", @formdata)
     res = @client.get(res.header['location'].first) if res.status==302
 
-    postkey = nil
+    postdata = parse_form(res.body).merge({
+      "lstAccSel" => acc,
+      "rdoInqMtdSpec" => mode,
+      "lstTargetMnthSel" => "NO_WRITE", # (THIS_MONTH,PREV_MONTH,BEFORE_LASTMONTH,NO_WRITE)
+      "lstDateFrmYear"=> fdate.year,
+      "lstDateFrmMnth"=> fdate.month,
+      "lstDateFrmDay"=> fdate.mday,
+      "lstDateToYear"=> tdate.year,
+      "lstDateToMnth"=> tdate.month,
+      "lstDateToDay"=> tdate.mday
+    })
+    res = @client.post(@base_url + "/servlet/ACCHST0400001B.do", postdata)
+    res = @client.get(res.header['location'].first) if res.status==302
+    @formdata = parse_form(res.body)
 
-    res = @client.get("https://#{@host}/servlet/mib?xtr=Emf04000")
-
-    if res.body =~/<INPUT TYPE=HIDDEN NAME="EMFPOSTKEY" VALUE="(\w+)"/
-      postkey = $1
-    end
-
-    postdata={
-      "Token"=>"",
-      "NLS"=>"JP",
-      "REDISP"=>"OFF",
-      "EMFPOSTKEY"=>postkey,
-      "hidColor"=>"00",
-      "menuposition"=>"0",
-      "pm_fp"=>"",
-      "SelAcct"=>"0",  # account
-      "REDISP"=>"OFF",
-      "INQUIRY_MONTH_TYPE"=>"THIS_MONTH",
-      "INQUIRY_TYPE"=>"RANGE",
-      "SFYear"=> fdate.year,
-      "SFMonth"=> fdate.month,
-      "SFDay"=> fdate.mday,
-      "STYear"=> tdate.year,
-      "STMonth"=> tdate.month,
-      "STDay"=> tdate.mday,
-      "Inquiry"=>"",
-    }
-
-    res = @client.post("https://#{@host}/servlet/mib?xtr=Emf04000", postdata)
-    if res.status==302
-      res = @client.get(res.header['location'].first)
-    end
     html = res.body.toutf8
-    # puts html
     return _parse_recent(html)
   end
 
   ##
+  # NOT IMPLEMENTED YET!
   # move to registered account
   # 振込み (登録住み口座のニックネーム:string,金額:int,第２暗証番号:string)
   # email,message(全角文字のみ)を指定するとメールで通知.
-  def transfer_to_registered_account nick, amount, pass2, email = nil, message = nil
-    postkey = nil
+  def transfer_to_registered_account nick, amount, pass2, email = nil, message = nil, acc = 0
 
-    res = @client.get("https://#{@host}/servlet/mib?xtr=Emf01000&mbid=MB_R011N050")
-    if res.status==302
-      res = @client.get(res.header['location'].first)
-      if res.body =~/<INPUT TYPE=HIDDEN NAME="EMFPOSTKEY" VALUE="(\w+)"/
-        postkey = $1
-      end
-    else
-      puts res.body
-      return
-    end
 
-    if res.body.toutf8 =~ /<INPUT TYPE="radio" NAME="InknKzRadio" VALUE="(\d+)" ><\/DIV><\/TD>\s+<TD[^>]*><DIV[^>]*>&nbsp;#{nick}<\/DIV>/
-      n = $1
-    else
-      puts res.body
-      return
-    end
+    res = @client.post(@base_url + "/servlet/MENSRV0100004B.do", @formdata)
+    res = @client.get(res.header['location'].first) if res.status==302
 
-    postdata={
-      "Token"=>"",
-      "NLS"=>"JP",
-      "REDISP"=>"OFF",
-      "EMFPOSTKEY"=>postkey,
-      "hidColor"=>"00",
-      "menuposition"=>"0",
-      "pm_fp"=>"",
-
-      "UktkNo"=>"",
-      "OutknKzBox"=>"0",
-      "OutknCustNmUmu"=>"no",
-      "OutknCustNm"=>"",
-      "InknKzRadio"=>n,
-      "Next"=>"",
+    registerd = {}
+    res.body.toutf8.scan(/<span\s+id="txtNickNm_(\d+)">([^<]+)</mi) {|m|
+      registerd[$2] = $1.to_i
     }
-    res = @client.post("https://#{@host}/servlet/mib?xtr=Emf05000", postdata)
-    if res.status==302
-      res = @client.get(res.header['location'].first)
-      #puts res.body
-      if res.body =~/<INPUT TYPE=HIDDEN NAME="EMFPOSTKEY" VALUE="(\w+)"/
-        postkey = $1
-      end
+    p registerd
+
+    raise "not registerd: #{nick}" unless registerd[nick]
+
+    postdata = parse_form(res.body).merge({
+      "lstAccLst" => acc,
+      "rdoChgOrNot" => "no", # use name?
+      "txbClntNmConfigClntNm" => "", # name
+      "rdoTrnsfreeSel"=> registerd[nick]
+    })
+
+    res = @client.post(@base_url + "/servlet/TRNTRN0500001B.do", postdata)
+    res = @client.get(res.header['location'].first) if res.status==302
+
+    postdata = parse_form(res.body).merge({
+      "txbTrnfrAmnt" => amount,
+      "txbRecpMailAddr" => email,
+      "txaTxt" => message
+    })
+
+    res = @client.post(@base_url + "/servlet/TRNTRN0507001B.do", postdata)
+    res = @client.get(res.header['location'].first) if res.status==302
+
+    if res.body.toutf8 =~/<div\s[^>]*id="ErrorMessage"[^>]*>(.*?)<\//
+      @formdata = parse_form(res.body)
+      puts $1
+      raise "ERR: #{$1}"
     end
 
-    postdata={
-      "Token"=>"",
-      "NLS"=>"JP",
-      "REDISP"=>"OFF",
-      "EMFPOSTKEY"=>postkey,
-      "hidColor"=>"00",
-      "menuposition"=>"0",
-      "pm_fp"=>"",
-
-      "InputThrKn"=>amount,
-      "PayeeEmail"=>email,
-      "PayeeEmailMessage"=>message &&message.tosjis,
-      "Next"=>"",
+    pp = []
+    res.body.toutf8.scan(/<span id="txtScndPwdDgt(\d+)">(\d+)</) {|m|
+      pp[$1.to_i] = $2.to_i
     }
-    res = @client.post("https://#{@host}/servlet/mib?xtr=Emf05070", postdata)
-    if res.status==302
-      res = @client.get(res.header['location'].first)
-      #puts res.body
-      if res.body =~/<INPUT TYPE=HIDDEN NAME="EMFPOSTKEY" VALUE="(\w+)"/
-        postkey = $1
-      end
-    else
-      p postdata
-      puts res.body
-      return
+    raise "error pass2 get digits." unless pp[1] && pp[2] && pp[3] && pp[4]
+
+    postdata = parse_form(res.body).merge({
+      "PASSWD_ScndPwd1" => pass2[pp[1]],
+      "PASSWD_ScndPwd2" => pass2[pp[2]],
+      "PASSWD_ScndPwd3" => pass2[pp[3]],
+      "PASSWD_ScndPwd4" => pass2[pp[4]],
+      "chkTrnfrCntntConf" => "on"
+    })
+
+    p postdata
+    return ## skip
+
+    res = @client.post(@base_url + "/servlet/TRNTRN0508001B.do", postdata)
+    res = @client.get(res.header['location'].first) if res.status==302
+    @formdata = parse_form(res.body)
+
+    if res.body.toutf8 =~/<div\s[^>]*id="ErrorMessage"[^>]*>(.*?)<\//
+      puts $1
+      raise "ERR: #{$1}"
     end
 
-    pass2pos = []
-    if res.body.toutf8 =~/第2暗証番号の左から<FONT COLOR="#F00000">(\d)番目<\/FONT>、<FONT COLOR="#F00000">(\d)番目<\/FONT>、<FONT COLOR="#F00000">(\d)番目<\/FONT>、<FONT COLOR="#F00000">(\d)番目<\/FONT>/
-      pass2pos = [$1.to_i,$2.to_i,$3.to_i,$4.to_i]
-    else
-      return
-    end
-    postdata={
-      "Token"=>"",
-      "NLS"=>"JP",
-      "REDISP"=>"OFF",
-      "EMFPOSTKEY"=>postkey,
-      "hidColor"=>"00",
-      "menuposition"=>"0",
-      "pm_fp"=>"",
-
-      "CheckAnshu2"=>"on",
-      "Anshu2"=>pass2[pass2pos[0]-1],
-      "Anshu2_2"=>pass2[pass2pos[1]-1],
-      "Anshu2_3"=>pass2[pass2pos[2]-1],
-      "Anshu2_4"=>pass2[pass2pos[3]-1],
-      "ButtonExecHurikomi"=>"",
-    }
-    res = @client.post("https://#{@host}/servlet/mib?xtr=Emf05080", postdata)
-    if res.status==302
-      res = @client.get(res.header['location'].first)
-      puts res.body
-    else
-      p postdata
-      puts res.body
-      return
-    end
+    puts res.body
 
     return true
   end
 
+  # deprecated
   def zandaka
-    @account_status['zandaka']
+    total_balance()
   end
 
 end

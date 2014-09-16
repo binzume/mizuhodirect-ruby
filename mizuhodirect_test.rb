@@ -19,9 +19,11 @@ begin
     p row
   end
 
+  #p bank.get_history('2014-08-01','2014-09-16')
+
   #if bank.total_balance > 5000000
   #  # 振込み (登録住み口座のニックネーム:string,金額:int,第２暗証番号:string)
-  #  if bank.transfer_to_registered_account('登録住み口座のニックネーム', 3000000, mizuho_account['PASS2'])
+  #  if bank.transfer_to_registered_account('テスト', 3000000, "1234567890")
   #    puts "transfer ok"
   #  end
   #end
