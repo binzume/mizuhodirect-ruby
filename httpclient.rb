@@ -19,7 +19,7 @@ class HTTPClient
   def pre_proc uri,headers = nil
     headers = headers || {}
     if @cookies[uri.host]
-      headers['Cookie'] = @cookies[uri.host].map{|k,v|k+'='+v}.join(';')
+      headers['Cookie'] = cookies_for_host(uri.host).map{|k,v|k+'='+v.to_s}.join(';')
     end
     if @agent_name
       headers['User-Agent'] = @agent_name
@@ -28,19 +28,23 @@ class HTTPClient
     http.read_timeout = @timeout
     if uri.scheme == 'https'
       http.use_ssl = true
-      http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      http.verify_mode = OpenSSL::SSL::VERIFY_NONE # if @insecure
     end
     return http,headers
   end
 
+  def cookies_for_host host
+    @cookies.select{|d,c| host.end_with?(d)}.values.inject({}){|m,v| m.merge(v)}
+  end
+
   def post_proc uri,response
     if response['Set-Cookie']
-      if ! @cookies[uri.host]
-        @cookies[uri.host] = {}
-      end
       response.get_fields('Set-Cookie').each{|str|
+        domain = uri.host
+        domain = $1 if str =~/;\s*domain=([^;\s]+)/
+        @cookies[domain] = {} unless @cookies[domain]
         k,v = (str.split(';'))[0].split('=')
-        @cookies[uri.host][k] = v
+        @cookies[domain][k] = v
       }
     end
     def response.status
