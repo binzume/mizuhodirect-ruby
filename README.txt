@@ -6,6 +6,13 @@ Require:
 
 Ruby 1.9 or later.
 
+Feature:
+
+- 残高取得
+- 取引履歴
+- 登録済み口座への振込(experimental)
+- 振替(experimental)
+
 Exapmple:
 
 # mizuho_account.yaml
@@ -48,5 +55,7 @@ end
 
 puts "ok"
 
+License:
 
+- MIT
 
